@@ -1,4 +1,4 @@
-# 🎮 Tetris Clone
+# 🎮 Tetris
 
 A modern, feature-rich implementation of the classic Tetris game built with vanilla HTML, CSS, and JavaScript. No frameworks, no dependencies — just pure web technologies wrapped in a single HTML file.
 
