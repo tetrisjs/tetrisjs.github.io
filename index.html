@@ -167,13 +167,16 @@ body {
     text-transform: uppercase;
     letter-spacing: 1px;
     white-space: nowrap;
+    font-family: inherit;
 }
 
 .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,212,255,0.4); }
 .btn:active { transform: translateY(0); }
 
 .btn.danger { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
+.btn.danger:hover { box-shadow: 0 4px 15px rgba(255,107,107,0.5); }
 .btn.secondary { background: linear-gradient(135deg, #555, #333); }
+.btn.secondary:hover { box-shadow: 0 4px 15px rgba(255,255,255,0.2); }
 
 .overlay {
     position: absolute;
@@ -251,7 +254,7 @@ body {
 
 .touch-btn:active { background: rgba(0,212,255,0.5); }
 
-/* Custom modal popup */
+/* Custom modal popup — highest z-index */
 .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -260,7 +263,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 9999;
     padding: 20px;
     animation: fadeIn 0.2s ease;
 }
@@ -277,6 +280,7 @@ body {
     text-align: center;
     box-shadow: 0 0 40px rgba(0,212,255,0.4), 0 10px 30px rgba(0,0,0,0.5);
     animation: modalIn 0.25s ease;
+    position: relative;
 }
 
 .modal-icon {
@@ -309,6 +313,7 @@ body {
     flex: 1;
     min-width: 100px;
     max-width: 150px;
+    pointer-events: auto;
 }
 
 @keyframes fadeIn {
@@ -411,8 +416,7 @@ body {
     }
     .touch-btn { width: 28px; height: 28px; font-size: 12px; }
 
-    /* Reset button as small icon in the corner */
-    .btn.danger {
+    .btn.danger#resetBtn {
         position: absolute;
         top: -32px;
         right: 4px;
@@ -498,7 +502,7 @@ body {
                 ↓ <span data-i18n="softDrop">Швидке падіння</span><br>
                 ↑ <span data-i18n="rotate">Обертання</span><br>
                 Space <span data-i18n="hardDrop">Скидання</span><br>
-                C <span data-i18n="holdKey">Утримати</span><br>
+                C <span data-i18n="holdKey">У��римати</span><br>
                 P <span data-i18n="pauseKey">Пауза</span>
             </div>
             <div class="mobile-controls">
@@ -517,11 +521,11 @@ body {
 <div class="modal-backdrop" id="modalBackdrop">
     <div class="modal">
         <div class="modal-icon">⚠️</div>
-        <div class="modal-title" id="modalTitle" data-i18n="confirmTitle">Підтвердження</div>
-        <div class="modal-message" id="modalMessage" data-i18n="confirmReset">Скинути всі дані гри?</div>
+        <div class="modal-title" id="modalTitle">Підтвердження</div>
+        <div class="modal-message" id="modalMessage">Скинути всі дані гри?</div>
         <div class="modal-actions">
-            <button class="btn secondary" id="modalCancel" data-i18n="cancel">Скасувати</button>
-            <button class="btn danger" id="modalConfirm" data-i18n="confirm">Так</button>
+            <button type="button" class="btn secondary" id="modalCancel">Скасувати</button>
+            <button type="button" class="btn danger" id="modalConfirm">Так</button>
         </div>
     </div>
 </div>
@@ -918,8 +922,10 @@ function lockPiece() {
 
 function gameOver() {
     gameState = 'over';
-    cancelAnimationFrame(animationId);
-    animationId = null;
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
     
     const scores = JSON.parse(localStorage.getItem('tetris_highscores') || '[]');
     scores.push({ score, level, lines, date: new Date().toLocaleDateString() });
@@ -1013,7 +1019,6 @@ function loadState() {
 }
 
 function startNewGame() {
-    // Cancel any existing animation loop
     if (animationId) {
         cancelAnimationFrame(animationId);
         animationId = null;
@@ -1035,13 +1040,11 @@ function startNewGame() {
     drawPreview(nextCtx, nextPiece, nextCanvas);
     drawPreview(holdCtx, holdPiece, holdCanvas);
     updateUI();
-    // Use RAF to ensure lastTime resets correctly
     animationId = requestAnimationFrame(update);
 }
 
 function resumeGame() {
     if (gameState === 'paused' || gameState === 'menu') {
-        // Cancel any lingering animation frame
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
@@ -1053,7 +1056,6 @@ function resumeGame() {
         drawPreview(holdCtx, holdPiece, holdCanvas);
         updateUI();
 
-        // Reset timing so game doesn't drop instantly after pause
         lastTime = 0;
         dropCounter = 0;
         animationId = requestAnimationFrame(update);
@@ -1079,7 +1081,6 @@ function update(time = 0) {
         return;
     }
 
-    // First frame after start/resume: initialize lastTime, skip drop tick
     if (lastTime === 0) {
         lastTime = time;
         draw();
@@ -1109,40 +1110,63 @@ function update(time = 0) {
     animationId = requestAnimationFrame(update);
 }
 
-// Custom modal
+// ---------- Custom Modal ----------
 const modalBackdrop = document.getElementById('modalBackdrop');
+const modalConfirmBtn = document.getElementById('modalConfirm');
+const modalCancelBtn = document.getElementById('modalCancel');
+const modalTitleEl = document.getElementById('modalTitle');
+const modalMessageEl = document.getElementById('modalMessage');
 let modalCallback = null;
+let modalOpen = false;
 
 function showConfirm(title, message, onConfirm) {
-    document.getElementById('modalTitle').textContent = title || t('confirmTitle');
-    document.getElementById('modalMessage').textContent = message || '';
+    modalTitleEl.textContent = title || t('confirmTitle');
+    modalMessageEl.textContent = message || '';
+    modalConfirmBtn.textContent = t('confirm');
+    modalCancelBtn.textContent = t('cancel');
     modalCallback = onConfirm;
+    modalOpen = true;
     modalBackdrop.classList.add('active');
 }
 
 function hideConfirm() {
+    modalOpen = false;
     modalBackdrop.classList.remove('active');
     modalCallback = null;
 }
 
-document.getElementById('modalConfirm').addEventListener('click', () => {
-    if (modalCallback) modalCallback();
+// Confirm button — perform action
+modalConfirmBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const cb = modalCallback;
+    hideConfirm();
+    if (typeof cb === 'function') cb();
+});
+
+// Cancel button — dismiss modal
+modalCancelBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     hideConfirm();
 });
 
-document.getElementById('modalCancel').addEventListener('click', hideConfirm);
-
+// Backdrop click dismisses
 modalBackdrop.addEventListener('click', (e) => {
     if (e.target === modalBackdrop) hideConfirm();
 });
 
 document.addEventListener('keydown', (e) => {
-    // Modal handling
-    if (modalBackdrop.classList.contains('active')) {
-        if (e.key === 'Escape') hideConfirm();
-        else if (e.key === 'Enter' && modalCallback) {
-            modalCallback();
+    // Modal has priority over all other input
+    if (modalOpen) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
             hideConfirm();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const cb = modalCallback;
+            hideConfirm();
+            if (typeof cb === 'function') cb();
         }
         return;
     }
@@ -1167,21 +1191,25 @@ document.getElementById('startBtn').addEventListener('click', () => {
     else startNewGame();
 });
 
-document.getElementById('resetBtn').addEventListener('click', () => {
-    // Pause game while modal is open
-    const wasPlaying = gameState === 'playing';
-    if (wasPlaying) pauseGame();
+// Reset button — no auto-pause, modal handles UX
+document.getElementById('resetBtn').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Pause game if playing (but don't show pause overlay under the modal)
+    if (gameState === 'playing') {
+        gameState = 'paused';
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
+        saveState();
+    }
 
     showConfirm(t('confirmTitle'), t('confirmReset'), () => {
         localStorage.removeItem('tetris_state');
         localStorage.removeItem('tetris_highscores');
         localStorage.removeItem('tetris_best');
-        bestScore = 0;
-        gameState = 'menu';
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
-        }
         location.reload();
     });
 });
