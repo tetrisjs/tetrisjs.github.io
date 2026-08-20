@@ -166,12 +166,14 @@ body {
     transition: all 0.2s;
     text-transform: uppercase;
     letter-spacing: 1px;
+    white-space: nowrap;
 }
 
 .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,212,255,0.4); }
 .btn:active { transform: translateY(0); }
 
 .btn.danger { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
+.btn.secondary { background: linear-gradient(135deg, #555, #333); }
 
 .overlay {
     position: absolute;
@@ -249,24 +251,74 @@ body {
 
 .touch-btn:active { background: rgba(0,212,255,0.5); }
 
-/* Stats grid for mobile */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+/* Custom modal popup */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
 }
 
-.stats-grid .panel {
-    padding: 6px;
+.modal-backdrop.active { display: flex; }
+
+.modal {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid #00d4ff;
+    border-radius: 14px;
+    padding: 24px 20px;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(0,212,255,0.4), 0 10px 30px rgba(0,0,0,0.5);
+    animation: modalIn 0.25s ease;
 }
 
-.stats-grid .panel h3 {
-    font-size: 9px;
-    margin-bottom: 2px;
+.modal-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
 }
 
-.stats-grid .panel .value {
+.modal-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #00d4ff;
+    margin-bottom: 8px;
+}
+
+.modal-message {
     font-size: 14px;
+    color: #ccc;
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.modal-actions .btn {
+    flex: 1;
+    min-width: 100px;
+    max-width: 150px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.9) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* Tablet */
@@ -340,12 +392,13 @@ body {
         gap: 4px;
         order: 3;
         align-items: stretch;
+        position: relative;
     }
     .right-panel .panel {
         flex: 1;
         padding: 4px;
     }
-    .right-panel .panel:last-child {
+    .right-panel .panel:last-of-type {
         flex: 1.5;
     }
     .preview-canvas { max-width: 50px; }
@@ -357,13 +410,18 @@ body {
         margin-top: 2px;
     }
     .touch-btn { width: 28px; height: 28px; font-size: 12px; }
+
+    /* Reset button as small icon in the corner */
     .btn.danger {
         position: absolute;
-        top: 6px;
-        right: 6px;
-        padding: 4px 8px;
+        top: -32px;
+        right: 4px;
+        padding: 4px 10px;
         font-size: 10px;
         z-index: 5;
+        border-radius: 6px;
+        white-space: nowrap;
+        letter-spacing: 0.5px;
     }
 }
 
@@ -424,6 +482,7 @@ body {
     </div>
 
     <div class="right-panel">
+        <button class="btn danger" id="resetBtn" data-i18n="reset">Скинути</button>
         <div class="panel">
             <h3 data-i18n="next">Наступна</h3>
             <canvas id="nextCanvas" class="preview-canvas" width="120" height="120"></canvas>
@@ -451,7 +510,19 @@ body {
                 <button class="touch-btn" id="btnHold">H</button>
             </div>
         </div>
-        <button class="btn danger" id="resetBtn" data-i18n="reset">Скинути</button>
+    </div>
+</div>
+
+<!-- Custom Confirmation Modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+        <div class="modal-icon">⚠️</div>
+        <div class="modal-title" id="modalTitle" data-i18n="confirmTitle">Підтвердження</div>
+        <div class="modal-message" id="modalMessage" data-i18n="confirmReset">Скинути всі дані гри?</div>
+        <div class="modal-actions">
+            <button class="btn secondary" id="modalCancel" data-i18n="cancel">Скасувати</button>
+            <button class="btn danger" id="modalConfirm" data-i18n="confirm">Так</button>
+        </div>
     </div>
 </div>
 
@@ -496,7 +567,10 @@ const translations = {
         newGame: "Нова гра",
         finalScore: "Підсумковий рахунок",
         topScores: "Найкращі результати",
-        confirmReset: "Скинути всі дані гри?"
+        confirmReset: "Скинути всі дані гри? Прогрес та рекорди буде втрачено.",
+        confirmTitle: "Підтвердження",
+        cancel: "Скасувати",
+        confirm: "Так, скинути"
     },
     en: {
         title: "TETRIS",
@@ -522,7 +596,10 @@ const translations = {
         newGame: "New Game",
         finalScore: "Final Score",
         topScores: "High Scores",
-        confirmReset: "Reset all game data?"
+        confirmReset: "Reset all game data? Progress and high scores will be lost.",
+        confirmTitle: "Confirmation",
+        cancel: "Cancel",
+        confirm: "Yes, reset"
     }
 };
 
@@ -727,11 +804,13 @@ function draw() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
     
-    board.forEach((row, y) => {
-        row.forEach((val, x) => {
-            if (val) drawBlock(ctx, x, y, COLORS[val]);
+    if (board) {
+        board.forEach((row, y) => {
+            row.forEach((val, x) => {
+                if (val) drawBlock(ctx, x, y, COLORS[val]);
+            });
         });
-    });
+    }
     
     if (currentPiece && gameState === 'playing') {
         drawGhost();
@@ -840,6 +919,7 @@ function lockPiece() {
 function gameOver() {
     gameState = 'over';
     cancelAnimationFrame(animationId);
+    animationId = null;
     
     const scores = JSON.parse(localStorage.getItem('tetris_highscores') || '[]');
     scores.push({ score, level, lines, date: new Date().toLocaleDateString() });
@@ -933,6 +1013,12 @@ function loadState() {
 }
 
 function startNewGame() {
+    // Cancel any existing animation loop
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+
     board = createBoard();
     currentPiece = randomPiece();
     nextPiece = randomPiece();
@@ -949,25 +1035,38 @@ function startNewGame() {
     drawPreview(nextCtx, nextPiece, nextCanvas);
     drawPreview(holdCtx, holdPiece, holdCanvas);
     updateUI();
-    update();
+    // Use RAF to ensure lastTime resets correctly
+    animationId = requestAnimationFrame(update);
 }
 
 function resumeGame() {
     if (gameState === 'paused' || gameState === 'menu') {
+        // Cancel any lingering animation frame
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
+
         gameState = 'playing';
         document.getElementById('overlay').style.display = 'none';
         drawPreview(nextCtx, nextPiece, nextCanvas);
         drawPreview(holdCtx, holdPiece, holdCanvas);
         updateUI();
+
+        // Reset timing so game doesn't drop instantly after pause
         lastTime = 0;
-        update();
+        dropCounter = 0;
+        animationId = requestAnimationFrame(update);
     }
 }
 
 function pauseGame() {
     if (gameState === 'playing') {
         gameState = 'paused';
-        cancelAnimationFrame(animationId);
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
         updateOverlay();
         document.getElementById('overlay').style.display = 'flex';
         saveState();
@@ -975,7 +1074,19 @@ function pauseGame() {
 }
 
 function update(time = 0) {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing') {
+        animationId = null;
+        return;
+    }
+
+    // First frame after start/resume: initialize lastTime, skip drop tick
+    if (lastTime === 0) {
+        lastTime = time;
+        draw();
+        animationId = requestAnimationFrame(update);
+        return;
+    }
+
     const deltaTime = time - lastTime;
     lastTime = time;
     dropCounter += deltaTime;
@@ -985,7 +1096,10 @@ function update(time = 0) {
             currentPiece.y++;
         } else {
             lockPiece();
-            if (gameState !== 'playing') return;
+            if (gameState !== 'playing') {
+                animationId = null;
+                return;
+            }
         }
         dropCounter = 0;
     }
@@ -995,7 +1109,44 @@ function update(time = 0) {
     animationId = requestAnimationFrame(update);
 }
 
+// Custom modal
+const modalBackdrop = document.getElementById('modalBackdrop');
+let modalCallback = null;
+
+function showConfirm(title, message, onConfirm) {
+    document.getElementById('modalTitle').textContent = title || t('confirmTitle');
+    document.getElementById('modalMessage').textContent = message || '';
+    modalCallback = onConfirm;
+    modalBackdrop.classList.add('active');
+}
+
+function hideConfirm() {
+    modalBackdrop.classList.remove('active');
+    modalCallback = null;
+}
+
+document.getElementById('modalConfirm').addEventListener('click', () => {
+    if (modalCallback) modalCallback();
+    hideConfirm();
+});
+
+document.getElementById('modalCancel').addEventListener('click', hideConfirm);
+
+modalBackdrop.addEventListener('click', (e) => {
+    if (e.target === modalBackdrop) hideConfirm();
+});
+
 document.addEventListener('keydown', (e) => {
+    // Modal handling
+    if (modalBackdrop.classList.contains('active')) {
+        if (e.key === 'Escape') hideConfirm();
+        else if (e.key === 'Enter' && modalCallback) {
+            modalCallback();
+            hideConfirm();
+        }
+        return;
+    }
+
     if (gameState === 'playing') {
         switch(e.key) {
             case 'ArrowLeft': e.preventDefault(); move(-1); break;
@@ -1017,15 +1168,22 @@ document.getElementById('startBtn').addEventListener('click', () => {
 });
 
 document.getElementById('resetBtn').addEventListener('click', () => {
-    if (confirm(t('confirmReset'))) {
+    // Pause game while modal is open
+    const wasPlaying = gameState === 'playing';
+    if (wasPlaying) pauseGame();
+
+    showConfirm(t('confirmTitle'), t('confirmReset'), () => {
         localStorage.removeItem('tetris_state');
         localStorage.removeItem('tetris_highscores');
         localStorage.removeItem('tetris_best');
         bestScore = 0;
         gameState = 'menu';
-        cancelAnimationFrame(animationId);
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
         location.reload();
-    }
+    });
 });
 
 document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -1068,38 +1226,30 @@ canvas.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 function resizeCanvas() {
-    // Get available viewport
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const isPortraitMobile = vw < 600 && vh > vw;
-    const isLandscape = vw > vh;
 
     let availableW, availableH;
 
     if (isPortraitMobile) {
-        // Reserve space for top stats (~50px) and bottom controls (~75px) + padding
         availableW = vw - 16;
-        availableH = vh - 140;
+        availableH = vh - 150;
     } else {
-        // Two side panels with padding
         const panelW = vw < 700 ? 95 : (vw < 900 ? 130 : 170);
         availableW = vw - (panelW * 2) - 40;
         availableH = vh - 24;
     }
 
-    // Calculate block size to fit both dimensions
     const sizeByWidth = Math.floor(availableW / COLS);
     const sizeByHeight = Math.floor(availableH / ROWS);
     let size = Math.min(sizeByWidth, sizeByHeight);
-
-    // Reasonable bounds
     size = Math.max(12, Math.min(size, 32));
 
     BLOCK_SIZE = size;
     canvas.width = COLS * BLOCK_SIZE;
     canvas.height = ROWS * BLOCK_SIZE;
 
-    // Resize preview canvases based on their displayed size
     [nextCanvas, holdCanvas].forEach(c => {
         const rect = c.getBoundingClientRect();
         const dim = Math.max(40, Math.floor(rect.width));
